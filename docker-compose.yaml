@@ -1,0 +1,48 @@
+services:
+  postgres:
+    container_name: wb_postgres
+    image: postgres:15.2-alpine
+    ports:
+      - 5433:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${PGDATABASE}
+      - POSTGRES_USER=${PGUSER}
+      - POSTGRES_PASSWORD=${PGPASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wb_network
+
+  migrate:
+    container_name: wb_migrate
+    image: migrate/migrate
+    volumes:
+      - ./db/migrations:/migrations
+    command: [ "-path", "/migrations", "-database", "postgres://${PGUSER}:${PGPASSWORD}@postgres/${PGDATABASE}?sslmode=${PGSSLMODE}", "up" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - wb_network
+
+  nats-streaming:
+    image: nats-streaming:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - wb_network
+
+volumes:
+  postgres_data:
+
+networks:
+  wb_network:
+    name: wb_network
+    driver: bridge
+
